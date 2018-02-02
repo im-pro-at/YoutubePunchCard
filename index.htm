@@ -1,0 +1,129 @@
+<html>
+  <head>
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script type="text/javascript" src="https://apis.google.com/js/api.js"></script>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script>
+      $(function() {
+        // 1. Load the JavaScript client library.
+        gapi.load('client', function(){
+            google.charts.load('current', {'packages':['corechart']});
+            google.charts.setOnLoadCallback(function(){
+              url_string = window.location.href;
+              url = new URL(url_string);
+              channelid=url.searchParams.get("channelid");
+              console.log("Channel ID:",channelid);
+              if(channelid)  getpage("");   
+            });
+        
+        });
+      })
+      var channelid="";
+      var name=""
+      var items=[];
+      function getpage(page){
+        ulid=""
+
+        gapi.client.init({
+          'apiKey': '-----------------------------'
+        }).then(function() {
+          // 3. Initialize and make the API request.
+          return gapi.client.request({
+            'path': 'https://www.googleapis.com/youtube/v3/channels?part=snippet,contentDetails&id='+channelid,
+          })
+        }).then(function(response) {
+          console.log(response);
+          ulid=response.result["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"];
+          name=response.result["items"][0]["snippet"]["title"]
+          console.log("ULPL: "+ulid);
+          // 3. Initialize and make the API request.
+          return gapi.client.request({
+            'path': 'https://www.googleapis.com/youtube/v3/playlistItems?playlistId='+ulid+'&part=snippet&maxResults=50&pageToken='+page,
+          })
+        }, function(reason) {
+          $("#chart").text(channelid+": Error! Reload!");
+        }).then(function(response) {
+          console.log(response.result);
+          items=items.concat(response.result["items"]);
+          $("#chart").text("Loading Videos ... "+items.length+" of "+response.result["pageInfo"]["totalResults"]);
+          if(response.result["nextPageToken"]){
+            getpage(response.result["nextPageToken"]);
+          }
+          else{
+            graph();
+          }
+        }, function(reason) {
+          $("#chart").text(channelid+": Error! Reload!");
+        });
+      }
+      function graph() {
+        console.log(items);
+        
+        pc=[];
+        for(w=0;w<7;w++){
+            pc[w]=[];
+            for(h=0;h<24;h++){
+              pc[w][h]=0;
+            }
+        }
+        items.forEach(function(e){
+          d=new Date();
+          d.setTime(Date.parse(e["snippet"]["publishedAt"]));
+          console.log(e["snippet"]["publishedAt"],d,d.getHours(),d.getDay());
+          pc[d.getDay()][d.getHours()]++;
+        });
+        max=0;
+        console.log(pc);
+        
+        var dataTable = new google.visualization.DataTable();
+        dataTable.addColumn({ type: 'string', id: 'ID' });
+        dataTable.addColumn({ type: 'number', id: 'Hours' });
+        dataTable.addColumn({ type: 'number', id: 'Week' });
+        dataTable.addColumn({ type: 'string', id: '-' });        
+        dataTable.addColumn({ type: 'number', id: 'Videos' });        
+        pc.forEach(function(e,w){
+            e.forEach(function(f,h){
+              if (w==0) w=7;
+              if(f!=0) dataTable.addRow(['',h,8-w,'',f]);
+            });
+        });
+        console.log(dataTable);
+
+        ticks=[];
+        for(i=0;i<24;i++){
+          f="";
+          if(i==0) f="11a";
+          if(i>=1 && i<=11) f=i+"a";
+          if(i==12) f=i+"p";
+          if(i>=13) f=(i-12)+"p";
+          ticks[i]={v:i,f:f};
+        }
+        
+        var options = {
+          title: name+' Video Publish Punch Card',
+          hAxis: {title: 'Hours', ticks: ticks, baseline:-1, minValue: -1, maxValue: 24},
+          vAxis: {title: 'Week', ticks: [{v:7, f:'Mo.'},{v:6, f:'Tu.'},{v:5, f:'We.'},{v:4, f:'Th.'},{v:3, f:'Fe.'}, {v:2, f:'Sa.'}, {v:1, f:'Su.'}],minValue: 0, maxValue: 8},
+          legend: 'none'
+        };
+
+        var chart = new google.visualization.BubbleChart(document.getElementById('chart'));
+        chart.draw(dataTable, options);
+      }
+    </script>
+    </head>
+  <body>
+    <div id="chart" style="width: 100%; height: 100%;"> 
+		Youtube Channel ID: <form action="."> 
+		<input id="channel" type="text" name="channelid" value="">
+		<input type="submit" value="Submit"></form>
+		<a href="http://dev.zype.com/posts/2014/11/04/finding-youtube-channel-id/">How to find the Youtube Channel ID </a>
+	</div>  
+    <div style="
+			bottom: 10;
+			left: 10;
+			position: fixed;">
+				<a href="."> > Back </a>  
+	</div>
+  </body>
+
+</html>
